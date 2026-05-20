@@ -4,6 +4,13 @@ import pandas as pd
 import os
 from datetime import date
 from PIL import Image
+import pytesseract
+from pdf2image import convert_from_path
+import re
+
+pytesseract.pytesseract.tesseract_cmd = (
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+)
 
 # Configurações Iniciais
 
@@ -80,6 +87,70 @@ with col2:
         PASTA_UPLOADS
     )
 
+# Função para extrair texto (OCR)
+
+def extrair_texto(caminho_arquivo):
+
+    texto = ""
+
+    extensao = caminho_arquivo.lower()
+
+    try:
+
+    
+        # Imagens
+
+        if extensao.endswith(
+            (".png", ".jpg", ".jpeg")
+        ):
+
+            imagem = Image.open(caminho_arquivo)
+
+            texto = pytesseract.image_to_string(
+                imagem,
+                lang="por"
+            )
+
+        # PDFs
+
+        elif extensao.endswith(".pdf"):
+
+            paginas = convert_from_path(
+                caminho_arquivo
+            )
+
+            for pagina in paginas:
+
+                texto += pytesseract.image_to_string(
+                    pagina,
+                    lang="por"
+                )
+
+    except Exception as erro:
+
+        texto = f"Erro OCR: {erro}"
+
+    return texto
+
+# =========================
+# EXTRAIR VALORES
+# =========================
+
+def extrair_valor(texto):
+
+    padrao = r"R\$\s?\d+[.,]\d+"
+
+    resultado = re.findall(
+        padrao,
+        texto
+    )
+
+    if resultado:
+
+        return resultado[0]
+
+    return "Não encontrado"
+
 # Formulário de Upload
 
 
@@ -116,7 +187,7 @@ with st.form("formulario"):
         "Salvar"
     )
 
-# SALVAR
+# Salvar
 
 
 if salvar:
@@ -146,6 +217,27 @@ if salvar:
         conn.commit()
 
         st.success("Comprovante salvo!")
+
+        # OCR
+        texto_extraido = extrair_texto(
+            caminho
+        )
+
+        st.subheader("🧠 Texto extraído")
+
+        st.text_area(
+            "OCR",
+            texto_extraido,
+            height=300
+        )
+
+        valor_detectado = extrair_valor(
+            texto_extraido
+        )
+
+        st.success(
+            f"💰 Valor detectado: {valor_detectado}"
+        )
 
     else:
 
