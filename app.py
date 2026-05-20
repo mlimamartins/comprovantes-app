@@ -1,79 +1,110 @@
 import streamlit as st
+import sqlite3
 import os
 from datetime import date
+import pandas as pd
 
 
 # Configurações da página
 
+
 st.set_page_config(
-    page_title="Sistema de Comprovantes",
-    page_icon="📄",
-    layout="centered"
+    page_title="Comprovantes",
+    page_icon="📄"
 )
 
-# Criação da pasta uploads
-
-PASTA_UPLOADS = "Uploads"
+PASTA_UPLOADS = "uploads"
 
 os.makedirs(PASTA_UPLOADS, exist_ok=True)
 
-# Título
+# Banco de dados
+
+
+conn = sqlite3.connect("banco.db")
+
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS comprovantes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    descricao TEXT,
+    data TEXT,
+    arquivo TEXT
+)
+""")
+
+conn.commit()
+
+
+# Título da aplicação
+
 
 st.title("📄 Sistema de Comprovantes")
 
-st.write("Envie e organize seus comprovantes aqui")
+# Formulário de upload
 
-
-# Formulário
-
-with st.form("form_comprovante"):
+with st.form("formulario"):
 
     arquivo = st.file_uploader(
-        "Escolha um comprovante", 
-        type=["pdf", "jpg", "jpeg", "png"]
+        "Comprovante",
+        type=["png", "jpg", "jpeg", "pdf"]
     )
 
     descricao = st.text_input(
-        "Descrição do comprovante",
-        max_chars=100
-    )
-
-    data_vencimento = st.date_input(
-        "Data de vencimento"
+        "Descrição"
     )
 
     data_pagamento = st.date_input(
-        "Data de pagamento"
+        "Data",
+        value=date.today()
     )
 
-    botao_salvar = st.form_submit_button(
-        "Salvar comprovante"
+    salvar = st.form_submit_button(
+        "Salvar"
     )
 
-    # Salvar o arquivo e as informações
+# Salvar o comprovante
 
-    if botao_salvar:
+if salvar:
 
-        if arquivo is not None:
+    if arquivo is not None:
 
-            caminho_arquivo = os.path.join(
-                PASTA_UPLOADS,
-                arquivo.name
-            )
+        caminho = os.path.join(
+            PASTA_UPLOADS,
+            arquivo.name
+        )
 
-            with open (caminho_arquivo, "wb") as f:
+        with open(caminho, "wb") as f:
 
-                f.write(arquivo.getbuffer())
+            f.write(arquivo.getbuffer())
 
-            st.sucess="Comprovante salvo com sucesso!" 
+        cursor.execute("""
+        INSERT INTO comprovantes
+        (descricao, data, arquivo)
+        VALUES (?, ?, ?)
+        """, (
+            descricao,
+            str(data_pagamento),
+            arquivo.name
+        ))
 
-            st.write(f"Desccrição: {descricao}")
+        conn.commit()
 
-            st.write(f"Data de vencimento: {data_vencimento}")
+        st.success("Comprovante salvo!")
 
-            st.write(f"Data de pagamento: {data_pagamento}")
+    else:
 
-        else: 
+        st.error("Envie um arquivo")
 
-            st.error("Por favor, selecione um arquivo para upload")
+# Listar os comprovantes
 
+st.divider()
+
+st.subheader("📋 Comprovantes Salvos")
+
+dados = pd.read_sql_query(
+    "SELECT * FROM comprovantes",
+    conn
+)
+
+st.dataframe(dados)
